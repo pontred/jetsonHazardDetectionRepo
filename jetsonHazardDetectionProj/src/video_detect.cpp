@@ -5,6 +5,15 @@
 #include <signal.h>
 #include <stdio.h>
 
+#include <rplidar.h>
+#include "sl_lidar.h"
+#include "sl_lidar_driver.h"
+
+#ifndef _countof
+#define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
+#endif
+
+using namespace sl;
 
 bool signal_recieved = false;
 void sig_handler (int signo){
@@ -20,6 +29,54 @@ int main(){
     } else {
 	
 	}
+// lidar set up
+    sl_result op_result;
+	sl_lidar_response_device_health_t healthinfo;
+	IChannel* channel_instance;
+	ILidarDriver* drv = *createLidarDriver();
+    if(!drv){
+	    fprintf(stderr, "insufficient memeory. Exit\n");
+		exit(-2);
+	} else {
+	
+	}
+
+	sl_lidar_response_device_info_t devinfo;
+	bool connectSuccess = false;
+
+	channel_instance = (*createSerialPortChannel("/dev/ttyUSB0", 115200));
+	if(SL_IS_OK(drv->connect(channel_instance))){
+	    op_result = drv->getDeviceInfo(devinfo);
+		if(SL_IS_OK(op_result)){
+		    printf("here\n");
+			connectSuccess = true;
+		} else {
+		    delete drv;
+            drv = NULL;
+		}
+	} else {
+	    delete drv;
+		drv = NULL;
+	}
+
+
+	if(connectSuccess){
+	    op_result = drv->getHealth(healthinfo);
+		printf("SLAMTEC LIDAR HEALTH STATUS: %d\n", healthinfo.status);
+		if(healthinfo.status == SL_LIDAR_STATUS_ERROR){
+		    fprintf(stderr, "Error, health status");
+			connectSuccess = false;
+			delete drv;
+			drv = NULL;
+		} else {
+		
+		}
+	} else {
+		connectSuccess = false;
+        delete drv;
+        drv = NULL;
+	}
+
 	URI uri_input = URI("v4l2:///dev/video0");
 	URI uri_output = URI("display://0");
 	videoOptions input_options = videoOptions();
@@ -33,7 +90,41 @@ int main(){
 
     detectNet* net = detectNet::Create();
     const uint32_t overlayFlags = detectNet::OverlayFlagsFromStr("box,labels,conf");
+	if(connectSuccess){
+	    drv->setMotorSpeed();
+        drv->startScan(0,1);
+    } else {
+	
+	}
     while(!signal_recieved){
+
+// lidar
+        if(connectSuccess){
+		    
+			sl_lidar_response_measurement_node_hq_t nodes[8192];
+			size_t count = _countof(nodes);
+            
+			op_result = drv->grabScanDataHq(nodes, count);
+			if(SL_IS_OK(op_result)){
+			    drv->ascendScanData(nodes,count);
+				for(int pos = 0; pos < (int)count; ++pos){
+				    if(nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT){
+				        printf("%s theta: %03.2f Dist: %08.2f Q: %d \n",
+				        (nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT) ? "S" : " ",
+					    (nodes[pos].angle_z_q14 * 90.f) / 16384.f,
+				        nodes[pos].dist_mm_q2/4.0f,
+					    nodes[pos].quality >> SL_LIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+				    } else {
+					
+					}
+				}
+			} else {
+			
+			}
+
+		} else {
+		
+		}
 	    uchar3* image = NULL;
 // capture image
 		if(!input->Capture(&image, 1000)){
@@ -68,10 +159,10 @@ int main(){
 			net->PrintProfilerTimes();
 		}
 	}
-
+    drv->stop();
+	drv->setMotorSpeed(0);
 	SAFE_DELETE(input);
 	SAFE_DELETE(output);
 	SAFE_DELETE(net);
     return 0;
 }
-
