@@ -13,6 +13,8 @@
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
 #endif
 
+static const float degree_per_pixel = 78/720;
+
 using namespace sl;
 
 bool signal_recieved = false;
@@ -29,6 +31,7 @@ int main(){
     } else {
 	
 	}
+	
 // lidar set up
     sl_result op_result;
 	sl_lidar_response_device_health_t healthinfo;
@@ -76,18 +79,23 @@ int main(){
         delete drv;
         drv = NULL;
 	}
-
+    
 	URI uri_input = URI("v4l2:///dev/video0");
 	URI uri_output = URI("display://0");
-	videoOptions input_options = videoOptions();
-	videoOptions output_options = videoOptions();
-    //options.deviceType = deviceTypeFromStr("v4l2");
-    //options.Print();
+	//videoOptions input_options = videoOptions();
+	//videoOptions output_options = videoOptions();
+    //input_options.Print();
+	//output_options.Print();
 	
-    videoSource* input = videoSource::Create(uri_input, input_options);
-	
-	videoOutput* output = videoOutput::Create(uri_output, output_options);
+    //videoSource* input = videoSource::Create(uri_input, input_options);
+	videoSource* input = videoSource::Create(uri_input);
+    
+	//videoOutput* output = videoOutput::Create(uri_output, output_options);
+    videoOutput* output = videoOutput::Create(uri_output);
 
+	//input_options.Print();
+	//output_options.Print();
+	
     detectNet* net = detectNet::Create();
     const uint32_t overlayFlags = detectNet::OverlayFlagsFromStr("box,labels,conf");
 	if(connectSuccess){
@@ -96,36 +104,20 @@ int main(){
     } else {
 	
 	}
-    while(!signal_recieved){
-
+	
+	while(!signal_recieved && connectSuccess){
 // lidar
-        if(connectSuccess){
-		    
-			sl_lidar_response_measurement_node_hq_t nodes[8192];
-			size_t count = _countof(nodes);
-            
-			op_result = drv->grabScanDataHq(nodes, count);
-			if(SL_IS_OK(op_result)){
-			    drv->ascendScanData(nodes,count);
-				for(int pos = 0; pos < (int)count; ++pos){
-				    if(nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT){
-				        printf("%s theta: %03.2f Dist: %08.2f Q: %d \n",
-				        (nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT) ? "S" : " ",
-					    (nodes[pos].angle_z_q14 * 90.f) / 16384.f,
-				        nodes[pos].dist_mm_q2/4.0f,
-					    nodes[pos].quality >> SL_LIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-				    } else {
-					
-					}
-				}
-			} else {
-			
-			}
-
-		} else {
-		
-		}
+        sl_lidar_response_measurement_node_hq_t nodes[8192];
+		size_t count = _countof(nodes);
+    	op_result = drv->grabScanDataHq(nodes, count);
+        
 	    uchar3* image = NULL;
+		float angleleftcamera = 0;
+		float anglerightcamera = 0;
+		float anglewidthcamera = 0;
+		float objectdistance = 555;
+		float lidarangle = 0;
+		float tolerance = 0.5;
 // capture image
 		if(!input->Capture(&image, 1000)){
             if(!input->IsStreaming()){
@@ -133,7 +125,6 @@ int main(){
 			} else {
 			    printf("Streaming Error\n");
 			}
-
 		} else {
 		
 		}
@@ -141,11 +132,38 @@ int main(){
         detectNet::Detection* detections = NULL;
 		const int numDetections = net->Detect(image, input->GetWidth(), input->GetWidth(), &detections, overlayFlags);
 
-        /*if(numDetections > 0){
+        if(numDetections > 0){
 		    for(int n=0; n < numDetections; n++){
-			
+//convert left, right and width from pixel information to angle
+				anglerightcamera = (detections[n].Right * 78 / 1280) - 39;
+				angleleftcamera = (detections[n].Left * 78 / 1280) - 39;
+				anglewidthcamera = anglerightcamera - angleleftcamera;
+                if(SL_IS_OK(op_result)){
+			        drv->ascendScanData(nodes,count);
+		            // if left is negative convert to lidar angle representation
+					if (angleleftcamera < 0) {
+				        angleleftcamera = 360 + angleleftcamera;
+						anglerightcamera = angleleftcamera + anglewidthcamera;
+					    for(int pos = 0; pos < (int)count; ++pos){
+						    lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
+						    if (((angleleftcamera + anglewidthcamera/2) > (lidarangle - tolerance)) && ((angleleftcamera + anglewidthcamera/2) < (lidarangle + tolerance))){
+							    objectdistance = nodes[pos].dist_mm_q2/4.0f;
+							}    
+					    }
+					// if left is greater than 0 degrees	
+				    } else {
+					    for(int pos = 0; pos < (int)count; ++pos){
+						    lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
+						    if (((angleleftcamera + anglewidthcamera/2) > (lidarangle - tolerance)) && ((angleleftcamera + anglewidthcamera/2) < (lidarangle + tolerance))){
+							    objectdistance = nodes[pos].dist_mm_q2/4.0f;
+							}    
+					    }
+					}
+				}
+                printf("Detection: %d,  Right: %f, Left: %f, Width: %f, distance: %f\n", n, anglerightcamera, angleleftcamera, anglewidthcamera, objectdistance);
 			}
-		}*/
+
+		}
 
 //render image
         if(output != NULL){
@@ -158,9 +176,12 @@ int main(){
 		    }
 			net->PrintProfilerTimes();
 		}
+    
 	}
+
     drv->stop();
 	drv->setMotorSpeed(0);
+	
 	SAFE_DELETE(input);
 	SAFE_DELETE(output);
 	SAFE_DELETE(net);
