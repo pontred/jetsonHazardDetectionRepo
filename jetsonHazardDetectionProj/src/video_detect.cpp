@@ -167,9 +167,9 @@ int main(){
     SPI* thespi =new SPI("/dev/spidev0.0", &spi_config);
 // set up spi buffers with zeros   
     for(int i = 0; i < SPI_DATA_LENGTH; i++){
-	    txbuffer[i] = 0;
-		rxbuffer[i] = 0;
-	}
+        txbuffer[i] = 0;
+        rxbuffer[i] = 0;
+    }
 
     uint8_t chksum = 0x00;
     uint8_t chksum_MSB = 0x00;
@@ -188,7 +188,7 @@ int main(){
         exit(-2);
     } else {
 	
-	}
+    }
 
     sl_lidar_response_device_info_t devinfo;
     bool connectSuccess = false;
@@ -224,13 +224,13 @@ int main(){
         connectSuccess = false;
         delete drv;
         drv = NULL;
-	}
+    }
 
 // set up camera input and out    
 	URI uri_input = URI("v4l2:///dev/video0");
 	URI uri_output = URI("display://0");
 
-	videoSource* input = videoSource::Create(uri_input);
+    videoSource* input = videoSource::Create(uri_input);
     videoOutput* output = videoOutput::Create(uri_output);
 
 // set up detectnet instance	
@@ -239,16 +239,16 @@ int main(){
 
 	// set up motor
 	if(connectSuccess){
-	    drv->setMotorSpeed();
+        drv->setMotorSpeed();
         drv->startScan(0,1);
     } else {
-	
-	}
+    
+    }
     
     while(!signal_recieved && connectSuccess){
 // lidar variables
         sl_lidar_response_measurement_node_hq_t nodes [8192];
-		size_t count = _countof(nodes);
+        size_t count = _countof(nodes);
 // image variable
         uchar3* image = NULL;
 // sensor fusion variables
@@ -257,7 +257,7 @@ int main(){
         float anglewidthcamera = 0;
         float anglemidcamera = 0;
         float objectdistance = 555;
-		float minimumobjectdistance = 12000;
+        float minimumobjectdistance = 12000;
         float lidarangle = 0;
 //grab data from lidar
         op_result = drv->grabScanDataHq(nodes, count);
@@ -269,19 +269,19 @@ int main(){
 		        lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
                 if (((lidarangle < 120) && (lidarangle > 0)) | ((lidarangle > 240) && (lidarangle < 359))) {
                     runningaverage = (runningaverage + nodes[pos].dist_mm_q2)/(4.0f*2.0f);
-		            objectdistance = nodes[pos].dist_mm_q2/(4.0f);
-		            if ((objectdistance < minimumobjectdistance) && (objectdistance > 555)){
-			            minimumobjectdistance = objectdistance;
-		            } else {
-			 
-		            }
+                    objectdistance = nodes[pos].dist_mm_q2/(4.0f);
+                    if ((objectdistance < minimumobjectdistance) && (objectdistance > 555)){
+                        minimumobjectdistance = objectdistance;
+                    } else {
+
+                    }
                 } else {
 
                 }
             }
-		} else {
-		    
-		}
+        } else {
+    
+        }
 // capture image
         if(!input->Capture(&image, 1000)){
             if(!input->IsStreaming()){
@@ -291,8 +291,8 @@ int main(){
             }
             printf("Streaming Error\n");
         } else {
-
-		}
+        
+        }
 // detect objects in frame
         detectNet::Detection* detections = NULL;
         const int numDetections = net->Detect(image, input->GetWidth(), input->GetWidth(), &detections, overlayFlags);
@@ -310,69 +310,70 @@ int main(){
 // the case where the left bounding box is on the left side of the image (between 321 deg and 360 deg)
 // but the mid point is greater than 360 degree. midpoint angle will be between 0 deg and 39 deg.
                         if (anglemidcamera > 360) {
-						    anglemidcamera = anglemidcamera - 360;
-						}
+                            anglemidcamera = anglemidcamera - 360;
+                        }
 // the case where the left bound box is on the right side of the image (0 deg or above)
-					} else {
+                    } else {
                         anglemidcamera = angleleftcamera + anglewidthcamera/2;    
-				    }
+                    }
 // go through each angle reading from the lidar device and wait until the angle measured from the camera is 
                     for(int pos = 0; pos < (int)count; ++pos){
-				        lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
+                        lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
                         if ((anglemidcamera > (lidarangle - TOLERANCE)) && (anglemidcamera < (lidarangle + TOLERANCE))){
-						    objectdistance = nodes[pos].dist_mm_q2/4.0f;
-						} else {
-						}
-				    }
+                            objectdistance = nodes[pos].dist_mm_q2/4.0f;
+                        } else {
+                        }
+                    }
 // Detect type of object and hazard potential
-				    if (detections[n].ClassID == PERSON){
-						txbuffer[1] = STOP;
-						txbuffer[2] = COMMA;
-						txbuffer[3] = PERSON;
-						txbuffer[4] = COMMA;
+                    if (detections[n].ClassID == PERSON){
+                        txbuffer[1] = STOP;
+                        txbuffer[2] = COMMA;
+                        txbuffer[3] = PERSON;
+                        txbuffer[4] = COMMA;
                         txbuffer[5] = FRONT;
-						txbuffer[6] = COMMA;
-					}  else if ((detections[n].ClassID >= 3) || (detections[n].ClassID <= 10)) {
-						txbuffer[1] = CATION;
-						txbuffer[2] = COMMA;
-						txbuffer[3] = VEHICLE;
-						txbuffer[4] = COMMA;
+                        txbuffer[6] = COMMA;
+                    }  else if ((detections[n].ClassID >= 3) || (detections[n].ClassID <= 10)) {
+                        txbuffer[1] = CATION;
+                        txbuffer[2] = COMMA;
+                        txbuffer[3] = VEHICLE;
+                        txbuffer[4] = COMMA;
                         txbuffer[5] = FRONT;
-						txbuffer[6] = COMMA;
-					} else if ((detections[n].ClassID >= 18) || detections[n].ClassID <= 26) {
-					    txbuffer[1] = CATION;
-						txbuffer[2] = COMMA;
-						txbuffer[3] = ANIMAL;
-						txbuffer[4] = COMMA;
-						txbuffer[5] = FRONT;
-						txbuffer[6] = COMMA;
-					} else {
-					    txbuffer[1] = NO_HAZARD;
-						txbuffer[2] = COMMA;
-						txbuffer[3] = NO_OBJ;
-						txbuffer[4] = COMMA;
-						txbuffer[5] = FRONT;
-						txbuffer[6] = COMMA;
-					}
+                        txbuffer[6] = COMMA;
+                    } else if ((detections[n].ClassID >= 18) || detections[n].ClassID <= 26) {
+                        txbuffer[1] = CATION;
+                        txbuffer[2] = COMMA;
+                        txbuffer[3] = ANIMAL;
+                        txbuffer[4] = COMMA;
+                        txbuffer[5] = FRONT;
+                        txbuffer[6] = COMMA;
+                    } else {
+                        txbuffer[1] = NO_HAZARD;
+                        txbuffer[2] = COMMA;
+                        txbuffer[3] = NO_OBJ;
+                        txbuffer[4] = COMMA;
+                        txbuffer[5] = FRONT;
+                        txbuffer[6] = COMMA;
+                    }
 // Detect location of object
                     if ((anglemidcamera < 333) && (anglemidcamera > 321)) {
-		                txbuffer[5] = LEFT;
-					} else if ((anglemidcamera < 39) && (anglemidcamera > 27)){
-					    txbuffer[5] = RIGHT;
-					} else {
-					    //front
-				    }
+                        txbuffer[5] = LEFT;
+                    } else if ((anglemidcamera < 39) && (anglemidcamera > 27)){
+                        txbuffer[5] = RIGHT;
+                    } else {
+                        //front
+                    }
                 printf("Detection: %i, Class %u (%s), Distance: %f, Angle: %f\n", n, detections[n].ClassID, net->GetClassDesc(detections[n].ClassID), objectdistance, anglemidcamera);
                 //printf("Detection: %i, Class: #%u (%s),  Right: %f, Left: %f, Width: %f, distance: %f\n", n, detections[n].ClassID, net->GetClassDesc(detections[n].ClassID), anglerightcamera, angleleftcamera, anglewidthcamera, objectdistance);
             }
 
 // Setting up standard SPI data transfer
-			txbuffer[PREAMBLE_LOCATION_TX] = PREAMBLE;
-		    txbuffer[ASTERICK_LOCATION_TX] = ASTERICK;
-		    chksum = txbuffer[1] ^ txbuffer[2] ^ txbuffer[3] ^ txbuffer[4] ^ txbuffer[5];
-		    txbuffer[CHKSUM_MSB_LOCATION_TX] = hex_to_ascii(((chksum >> 4) & 0x0F));
-		    txbuffer[CHKSUM_LSB_LOCATION_TX] = hex_to_ascii((chksum & 0x0F));
+            txbuffer[PREAMBLE_LOCATION_TX] = PREAMBLE;
+            txbuffer[ASTERICK_LOCATION_TX] = ASTERICK;
+            chksum = txbuffer[1] ^ txbuffer[2] ^ txbuffer[3] ^ txbuffer[4] ^ txbuffer[5];
+            txbuffer[CHKSUM_MSB_LOCATION_TX] = hex_to_ascii(((chksum >> 4) & 0x0F));
+            txbuffer[CHKSUM_LSB_LOCATION_TX] = hex_to_ascii((chksum & 0x0F));
             printf("HAZARD: %X, OBJECT: %X, OBJ_ANGLE: %X", txbuffer[1], txbuffer[3], txbuffer[5]);
+        } else {
         }
 //render image
         if(output != NULL){
@@ -387,43 +388,39 @@ int main(){
         } else {
         }
 // Read/send VIA SPI	
-		if (thespi->begin()){
-		    thespi->xfer(txbuffer, sizeof(txbuffer)/sizeof(txbuffer[0]), rxbuffer, sizeof(rxbuffer)/sizeof(rxbuffer[0]));
-		}
+        if (thespi->begin()){
+            thespi->xfer(txbuffer, sizeof(txbuffer)/sizeof(txbuffer[0]), rxbuffer, sizeof(rxbuffer)/sizeof(rxbuffer[0]));
+        }
 		//for (int i = 0; i < SPI_DATA_LENGTH; i++){
 		//    printf("%c ", (char) rxbuffer[i]);
 		//}
-		printf("\n");
+        printf("\n");
         chksum = 0;
-		chksum_MSB = 0;
-		chksum_LSB = 0;
+        chksum_MSB = 0;
+        chksum_LSB = 0;
 // confirm PREAMBLE and *
-		if ((rxbuffer[PREAMBLE_LOCATION_RX] == PREAMBLE) && (rxbuffer[ASTERICK_LOCATION_RX] == ASTERICK)) { 
+        if ((rxbuffer[PREAMBLE_LOCATION_RX] == PREAMBLE) && (rxbuffer[ASTERICK_LOCATION_RX] == ASTERICK)) { 
 // xor to create chksum
             for (int i = PREAMBLE_LOCATION_RX + 1; i < ASTERICK_LOCATION_RX; i++){
-		        chksum ^= rxbuffer[i];
-			}
+                chksum ^= rxbuffer[i];
+            }
 // convert check sum to ascii
             chksum_MSB = hex_to_ascii((chksum >> 4) & 0x0F);
-			chksum_LSB = hex_to_ascii((chksum & 0x0f));
-			//printf("msb: %c, lsb %c\n", (char) chksum_MSB, (char) chksum_LSB);
-		    if ((rxbuffer[CHKSUM_MSB_LOCATION_RX] == chksum_MSB) && (rxbuffer[CHKSUM_LSB_LOCATION_RX] == chksum_LSB)){
-			    hazard = (HAZARD_T) rxbuffer[PREAMBLE_LOCATION_RX + 1];
-				obj = (OBJ_T) rxbuffer[PREAMBLE_LOCATION_RX + 3];
-				obj_angle = (OBJ_ANGLE_T) rxbuffer[PREAMBLE_LOCATION_RX + 5];
-				printf("From other Vehicle (Hazard: %X, Object: %X)\n", hazard, obj);
-			} else {
-			}
-
-		} else {
-		 //   printf("rx buffer error\n");
-		}
-		chksum = 0;
-		chksum_MSB = 0;
-		chksum_LSB = 0;
-        //printf("Hazard: %X, obj: %X, position: %X\n", hazard, obj, obj_angle);
-		//usleep(1000000);
-	    
+            chksum_LSB = hex_to_ascii((chksum & 0x0f));
+            //printf("msb: %c, lsb %c\n", (char) chksum_MSB, (char) chksum_LSB);
+            if ((rxbuffer[CHKSUM_MSB_LOCATION_RX] == chksum_MSB) && (rxbuffer[CHKSUM_LSB_LOCATION_RX] == chksum_LSB)){
+                hazard = (HAZARD_T) rxbuffer[PREAMBLE_LOCATION_RX + 1];
+                obj = (OBJ_T) rxbuffer[PREAMBLE_LOCATION_RX + 3];
+                obj_angle = (OBJ_ANGLE_T) rxbuffer[PREAMBLE_LOCATION_RX + 5];
+                printf("From other Vehicle (Hazard: %X, Object: %X)\n", hazard, obj);
+            } else {
+            }
+        } else {
+            //printf("rx buffer error\n");
+        }
+        chksum = 0;
+        chksum_MSB = 0;
+        chksum_LSB = 0;
     }
     drv->stop();
     drv->setMotorSpeed(0);
@@ -446,7 +443,7 @@ int main(){
  * ***********************************************************************************************************/
 uint8_t hex_to_ascii (uint8_t chksum) {
     uint8_t result;
-	if (chksum <= 0x9) {
+    if (chksum <= 0x9) {
         result = chksum + ASCII_NUMBER_MASK;
     } else {
         result = chksum + ASCII_LETTER_MASK - 0xa;
