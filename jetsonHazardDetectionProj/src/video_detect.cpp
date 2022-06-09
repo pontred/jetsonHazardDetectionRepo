@@ -237,8 +237,8 @@ int main(){
     detectNet* net = detectNet::Create();
     const uint32_t overlayFlags = detectNet::OverlayFlagsFromStr("box,labels,conf");
 
-	// set up motor
-	if(connectSuccess){
+	// set up moto
+    if(connectSuccess){
         drv->setMotorSpeed();
         drv->startScan(0,1);
     } else {
@@ -261,12 +261,12 @@ int main(){
         float lidarangle = 0;
 //grab data from lidar
         op_result = drv->grabScanDataHq(nodes, count);
-		if (SL_IS_OK(op_result)){
+        if (SL_IS_OK(op_result)){
 // check for close objects between -120 and +120 degrees
 // take average value. current loop is above running average cation or hazard will be sent
-		    drv->ascendScanData(nodes, count);
-		    for(int pos = 0; pos < (int)count; ++pos){
-		        lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
+            drv->ascendScanData(nodes, count);
+            for(int pos = 0; pos < (int)count; ++pos){
+                lidarangle = nodes[pos].angle_z_q14*90.f/16348.f;
                 if (((lidarangle < 120) && (lidarangle > 0)) | ((lidarangle > 240) && (lidarangle < 359))) {
                     runningaverage = (runningaverage + nodes[pos].dist_mm_q2)/(4.0f*2.0f);
                     objectdistance = nodes[pos].dist_mm_q2/(4.0f);
