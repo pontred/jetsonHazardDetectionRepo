@@ -4,8 +4,6 @@ This code is intended to function on a Jetson Nano. It requires the A1M8 Lidar m
 
 ## Installation
 
-This project DOES NOT have the necassary include files for the Lidar and SPI.
-
 For the complete Repo go [here](https://github.com/pontred/jetsonHazardDetectionRepo).  
 
 Follow the instructions here to install [jetson-inference](https://github.com/dusty-nv/jetson-inference/blob/master/docs/building-repo-2.md)
