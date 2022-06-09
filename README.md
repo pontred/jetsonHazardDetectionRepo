@@ -19,7 +19,7 @@ Requires CMake.
 To build project navigate to project folder in terminal and type the following commands
 1. mkdir build
 2. cd build
-3. cmake
+3. cmake ..
 4. make
 5. ./hazarddetect
 
